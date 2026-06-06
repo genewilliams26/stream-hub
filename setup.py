@@ -5,6 +5,13 @@ stream-hub — fresh Raspberry Pi 3 setup script.
 Provisions a brand-new Raspberry Pi OS (or any Debian-based Linux) install to run
 stream-hub as a full-screen, auto-starting Chromium kiosk.
 
+Supported systems:
+  • Full auto-setup (Node + systemd service + Chromium kiosk): Debian-based only
+    (Raspberry Pi OS, Debian, Ubuntu, Mint). Requires apt-get + systemd + an X11 desktop.
+  • Any other Linux (Fedora/RHEL, Arch, Alpine, etc.) or macOS: the script auto-
+    falls back to build-only mode. Install Node 18+ yourself first, then run with
+    --no-system. The app itself runs anywhere Node.js does.
+
 What it does (idempotent — safe to re-run):
   1. Installs Node.js 20 (via NodeSource) and git + chromium + unclutter.
   2. Runs `npm install` and `npm run build` in this project directory.
@@ -341,19 +348,39 @@ def main() -> None:
         print(f"\n{Colors.GREEN}{Colors.BOLD}Done.{Colors.END}")
         return
 
-    # Full setup path.
+    # Full setup path requires a Debian-based system (apt-get).
+    # On any other distro, fall back to build-only so the user is never stuck.
     if not have("apt-get"):
-        fail("apt-get not found. This script targets Debian-based systems "
-             "(Raspberry Pi OS, Ubuntu, etc.). Use --no-system on other distros.")
+        warn("apt-get not found — this is not a Debian/Ubuntu/Raspberry Pi OS system.")
+        warn("The full auto-setup (package install + systemd + kiosk) is Debian-only.")
+        info("Falling back to build-only mode. You'll need Node 18+ installed already,")
+        info("and you can set up the service/kiosk manually (see RASPBERRY_PI_SETUP.md).")
+        if not have("node"):
+            fail("Node.js not found. Install Node 18+ with your distro's package "
+                 "manager (dnf/pacman/apk/brew), then re-run: python3 setup.py --no-system")
+        build_app()
+        ok("Build complete. Start it with:")
+        info(f"NODE_ENV=production PORT={args.port} node dist/index.cjs")
+        info(f"Then open http://localhost:{args.port}")
+        print(f"\n{Colors.GREEN}{Colors.BOLD}Done.{Colors.END}")
+        return
 
     run(["sudo", "apt-get", "update"])
     install_node(args.yes)
     install_system_packages()
     build_app()
     maybe_write_env(args.yes)
-    create_systemd_service(args.user, args.port)
-    if not args.no_kiosk:
-        create_kiosk(args.user, args.port)
+
+    if have("systemctl"):
+        create_systemd_service(args.user, args.port)
+        if not args.no_kiosk:
+            create_kiosk(args.user, args.port)
+    else:
+        warn("systemctl not found — skipping auto-start service and kiosk setup.")
+        info("Start the app manually with:")
+        info(f"NODE_ENV=production PORT={args.port} node dist/index.cjs")
+        print(f"\n{Colors.GREEN}{Colors.BOLD}Build complete.{Colors.END}")
+        return
 
     print(f"\n{Colors.GREEN}{Colors.BOLD}\u2713 Setup complete!{Colors.END}")
     print(f"  • Server running on http://localhost:{args.port} (auto-starts on boot)")
