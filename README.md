@@ -5,6 +5,7 @@ you subscribe to — from a single screen. Designed to run as a lightweight,
 full-screen kiosk on a Raspberry Pi 3 (or any Linux desktop), but runs anywhere
 Node.js does.
 
+[![Build](https://github.com/genewilliams26/stream-hub/actions/workflows/build.yml/badge.svg)](https://github.com/genewilliams26/stream-hub/actions/workflows/build.yml)
 ![brand](https://img.shields.io/badge/stream--hub-streaming%20aggregator-orange)
 
 ## Features
