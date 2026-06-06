@@ -6,6 +6,7 @@ full-screen kiosk on a Raspberry Pi 3 (or any Linux desktop), but runs anywhere
 Node.js does.
 
 [![Build](https://github.com/genewilliams26/stream-hub/actions/workflows/build.yml/badge.svg)](https://github.com/genewilliams26/stream-hub/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/genewilliams26/stream-hub?color=orange)](https://github.com/genewilliams26/stream-hub/releases/latest)
 ![brand](https://img.shields.io/badge/stream--hub-streaming%20aggregator-orange)
 
 ## Features
