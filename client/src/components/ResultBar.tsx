@@ -11,13 +11,31 @@ import { Play, Film, Tv } from "lucide-react";
 //  poster · title/meta/overview · ratings · source chips · trailer thumb · play · seen toggle
 export function ResultBar({
   p,
+  trailerMode = "embed",
   onToggleSeen,
 }: {
   p: Production;
+  // "embed" opens the in-app modal player; "redirect" navigates the whole tab
+  // to the trailer's watch page (lighter on low-RAM kiosks like the Pi 3).
+  trailerMode?: "embed" | "redirect";
   onToggleSeen: (p: Production, seen: boolean) => void;
 }) {
   const [trailerOpen, setTrailerOpen] = useState(false);
   const grad = posterGradient(p.title);
+
+  // Watch page to send the user to in redirect mode (falls back to embed URL).
+  const watchUrl = p.trailerWatchUrl || p.trailerUrl;
+
+  function openTrailer() {
+    if (trailerMode === "redirect" && watchUrl) {
+      // Navigate the current tab so the app's DOM/compositor is freed while the
+      // video plays. The user returns to stream-hub with the browser Back
+      // button (or, in the kiosk, by closing the trailer / pressing Backspace).
+      window.location.assign(watchUrl);
+      return;
+    }
+    setTrailerOpen(true);
+  }
   // Primary play target: the cheapest/free offer's deep link (already sorted).
   const primary = p.availability[0];
 
@@ -92,7 +110,7 @@ export function ResultBar({
       {/* Trailer thumbnail */}
       {p.trailerUrl && (
         <button
-          onClick={() => setTrailerOpen(true)}
+          onClick={openTrailer}
           className="relative hidden aspect-video h-[68px] shrink-0 overflow-hidden rounded-lg ring-1 ring-card-border transition hover:ring-primary md:block"
           aria-label={`Play ${p.title} trailer`}
           data-testid={`trailer-${p.id}`}
@@ -142,12 +160,14 @@ export function ResultBar({
         </div>
       </div>
 
-      <TrailerDialog
-        open={trailerOpen}
-        onOpenChange={setTrailerOpen}
-        title={p.title}
-        trailerUrl={p.trailerUrl}
-      />
+      {trailerMode === "embed" && (
+        <TrailerDialog
+          open={trailerOpen}
+          onOpenChange={setTrailerOpen}
+          title={p.title}
+          trailerUrl={p.trailerUrl}
+        />
+      )}
     </article>
   );
 }

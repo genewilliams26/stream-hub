@@ -44,13 +44,19 @@ function buildDeepLink(template: string, title: string): string {
 function buildTrailer(
   entry: CatalogEntry,
   settings: SettingsData,
-): Pick<Production, "trailerUrl" | "trailerThumb" | "trailerSourceId"> {
+): Pick<
+  Production,
+  "trailerUrl" | "trailerWatchUrl" | "trailerThumb" | "trailerSourceId"
+> {
   // In the mock layer we only have YouTube ids, but we still honor the
   // enabled/priority config: if YouTube is disabled we drop the trailer.
   const yt = settings.trailerSources.find((s) => s.id === "youtube");
   if (entry.trailerId && yt?.enabled) {
     return {
+      // Embeddable URL — used by the in-app modal player ("embed" mode).
       trailerUrl: `https://www.youtube.com/embed/${entry.trailerId}?autoplay=1&rel=0`,
+      // Full watch-page URL — used by "redirect" mode (lighter on low-RAM kiosks).
+      trailerWatchUrl: `https://www.youtube.com/watch?v=${entry.trailerId}`,
       trailerThumb: `https://i.ytimg.com/vi/${entry.trailerId}/hqdefault.jpg`,
       trailerSourceId: "youtube",
     };

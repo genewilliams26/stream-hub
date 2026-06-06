@@ -146,6 +146,28 @@ export default function Settings() {
               title="Trailer sources"
               desc="Preferred sources for finding a playable trailer, in priority order."
             >
+              {/* Playback mode: embed (in-app modal) vs redirect (watch page).
+                  Redirect is lighter on low-RAM kiosks like the Raspberry Pi 3. */}
+              <Row
+                label={
+                  <span className="flex flex-col">
+                    <span>Open trailers in a new page</span>
+                    <span className="text-xs text-muted-foreground">
+                      Off: play in-app. On: open the watch page, then return
+                      (lighter for low-memory kiosks like the Pi 3).
+                    </span>
+                  </span>
+                }
+              >
+                <Switch
+                  checked={settings.trailerMode === "redirect"}
+                  onCheckedChange={(v) =>
+                    patch({ trailerMode: v ? "redirect" : "embed" })
+                  }
+                  data-testid="toggle-trailer-mode"
+                />
+              </Row>
+              <div className="my-3 h-px w-full bg-border" />
               <div className="space-y-2">
                 {settings.trailerSources
                   .slice()

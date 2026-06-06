@@ -85,4 +85,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
     { id: "vimeo", name: "Vimeo", enabled: true, priority: 2 },
     { id: "tmdb", name: "TMDB", enabled: true, priority: 3 },
   ],
+  // "embed" plays trailers in an in-app modal. Set to "redirect" on low-RAM
+  // kiosks (e.g. Raspberry Pi 3) to navigate to the watch page instead.
+  trailerMode: "embed",
 };

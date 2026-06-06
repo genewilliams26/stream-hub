@@ -1,8 +1,10 @@
-# StreamHub — Raspberry Pi 3 Kiosk Setup Guide
+# stream-hub — Raspberry Pi 3 Kiosk Setup Guide
 
-This guide gets StreamHub running as a full-screen, auto-starting kiosk on a Raspberry Pi 3 (any Linux OS — Raspberry Pi OS / Raspbian recommended). It also covers wiring in your own live API keys so search pulls real catalog and ratings data instead of the bundled mock dataset.
+This guide gets stream-hub running as a full-screen, auto-starting kiosk on a Raspberry Pi 3 (any Linux OS — Raspberry Pi OS / Raspbian recommended). It also covers wiring in your own live API keys so search pulls real catalog and ratings data instead of the bundled mock dataset.
 
-StreamHub is a lightweight Express + React app. The Pi runs the app locally and Chromium displays it in kiosk mode.
+> **Tip:** the easiest path is the one-command provisioner `python3 setup.py` (see the README). It does everything below automatically, including the Pi 3 performance tuning in section 9. This guide is the manual walkthrough.
+
+stream-hub is a lightweight Express + React app. The Pi runs the app locally and Chromium displays it in kiosk mode.
 
 ---
 
@@ -116,10 +118,10 @@ sudo systemctl status stream-hub   # confirm it's "active (running)"
 Install Chromium and the screensaver-disabling tool:
 
 ```bash
-sudo apt-get install -y chromium-browser unclutter
+sudo apt-get install -y chromium-browser rpi-chromium-mods unclutter
 ```
 
-> On 64-bit Raspberry Pi OS / newer Debian the package may be named `chromium` instead of `chromium-browser`. Adjust the command below to match.
+> **Use the official Raspberry Pi OS Chromium.** On Raspberry Pi OS, `chromium-browser` together with `rpi-chromium-mods` gives you hardware-accelerated H.264 video decode and the correct GPU flags — this is what makes trailer playback smooth. Do **not** use a snap or flatpak Chromium: those render video in software and will stutter badly on a Pi. On 64-bit Raspberry Pi OS the package is still `chromium-browser`; on plain Debian it may be `chromium` (adjust `kiosk.sh` to match).
 
 ### Create the autostart entry
 
@@ -261,6 +263,55 @@ Chromium will reflect the new build on its next refresh (or reboot the Pi).
 
 ---
 
+## 9. Raspberry Pi 3 performance tuning
+
+The Pi 3 has a 1.2 GHz quad-core CPU and only **1 GB of RAM**, so a 24/7 kiosk benefits from a few tweaks. The `setup.py` provisioner applies all of these automatically.
+
+**Nightly kiosk restart (reclaim Chromium memory).** Chromium slowly leaks memory over long uptimes; on 1 GB that can lead to freezes after days of running. A once-a-day restart fixes it. Create a systemd timer:
+
+```bash
+# /etc/systemd/system/stream-hub-restart.service
+[Unit]
+Description=Nightly restart of the stream-hub kiosk
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/home/pi/stream-hub/nightly-restart.sh
+```
+
+```bash
+# /etc/systemd/system/stream-hub-restart.timer
+[Unit]
+Description=Run nightly stream-hub kiosk restart
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+Where `nightly-restart.sh` bounces the service, kills Chromium, and relaunches `kiosk.sh`. Then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now stream-hub-restart.timer
+systemctl list-timers stream-hub-restart.timer   # confirm it's scheduled
+```
+
+**Lighter trailer playback.** In **Settings → “Open trailers in a new page”**, switch trailers to *redirect mode*. Instead of layering the YouTube player on top of the whole app, the trailer opens on its own watch page so the app's DOM and compositor are freed while it plays — noticeably lighter on 1 GB. Use the browser Back button (or close the tab) to return to stream-hub.
+
+**Swap for the build.** `npm run build` can exceed 1 GB. If it fails with an out-of-memory error, raise swap before building:
+
+```bash
+sudo dphys-swapfile swapoff
+sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+sudo dphys-swapfile setup && sudo dphys-swapfile swapon
+```
+
+2 GB of swap is plenty; you can lower it back to the default (100) after the build if you like.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -274,4 +325,4 @@ Chromium will reflect the new build on its next refresh (or reboot the Pi).
 
 ---
 
-Enjoy your single-screen, AI-powered streaming hub.
+Enjoy your single-screen, AI-powered stream-hub.

@@ -187,6 +187,7 @@ export default function Home() {
                 <ResultBar
                   key={p.id}
                   p={p}
+                  trailerMode={settings?.trailerMode ?? "embed"}
                   onToggleSeen={(prod, seen) => toggleSeen.mutate({ p: prod, seen })}
                 />
               ))}

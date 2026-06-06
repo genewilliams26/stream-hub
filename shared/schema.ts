@@ -84,6 +84,12 @@ export const settingsDataSchema = z.object({
   // pay offer exceeds this are hidden. 0 / undefined means "no limit".
   payLimit: z.number().default(0),
   aiSearch: z.boolean().default(true), // natural-language interpretation on/off
+  // How trailers play. "embed" (default) plays in an in-app modal iframe.
+  // "redirect" navigates the whole tab to the trailer's watch page and lets
+  // the user return to stream-hub afterwards. On low-RAM kiosks (e.g. the 1 GB
+  // Raspberry Pi 3) "redirect" frees the app's DOM/compositor while the video
+  // plays, which is lighter than layering the YouTube player over the app.
+  trailerMode: z.enum(["embed", "redirect"]).default("embed"),
 });
 export type SettingsData = z.infer<typeof settingsDataSchema>;
 
@@ -128,6 +134,7 @@ export const productionSchema = z.object({
   ratings: z.array(ratingSchema).default([]),
   availability: z.array(availabilitySchema).default([]),
   trailerUrl: z.string().optional(), // embeddable trailer URL (YouTube embed etc.)
+  trailerWatchUrl: z.string().optional(), // full watch-page URL (for redirect mode)
   trailerThumb: z.string().optional(),
   trailerSourceId: z.string().optional(),
   seen: z.boolean().default(false),

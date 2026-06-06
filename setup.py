@@ -14,18 +14,24 @@ Supported systems:
 
 What it does (idempotent — safe to re-run):
   1. Installs Node.js 20 (via NodeSource) and git + chromium + unclutter.
+     On Raspberry Pi OS it installs the OFFICIAL Foundation Chromium build
+     (chromium-browser + rpi-chromium-mods) for hardware-accelerated video.
   2. Runs `npm install` and `npm run build` in this project directory.
   3. Optionally writes a .env file for API keys (interactive, skippable).
   4. Creates and enables a systemd service so the server starts on boot.
   5. Creates a Chromium kiosk autostart entry + launch script.
+  6. Installs a nightly kiosk auto-restart timer (reclaims Chromium memory
+     on long-running kiosks — important on the 1 GB Pi 3).
 
 Run it from the project root:
 
-    python3 setup.py                 # full auto setup
-    python3 setup.py --no-kiosk      # skip the Chromium kiosk (server only)
-    python3 setup.py --no-system     # build only, no apt/systemd/kiosk changes
-    python3 setup.py --port 8080     # serve on a custom port (default 5000)
-    python3 setup.py --yes           # don't prompt (accept defaults, skip .env)
+    python3 setup.py                      # full auto setup
+    python3 setup.py --no-kiosk           # skip the Chromium kiosk (server only)
+    python3 setup.py --no-nightly-restart # skip the nightly kiosk restart timer
+    python3 setup.py --restart-time 03:30 # nightly restart at a custom time
+    python3 setup.py --no-system          # build only, no apt/systemd/kiosk changes
+    python3 setup.py --port 8080          # serve on a custom port (default 5000)
+    python3 setup.py --yes                # don't prompt (accept defaults, skip .env)
 
 Most steps need sudo. Run as your normal user (e.g. `pi`); the script calls
 sudo where required. Do NOT run the whole thing with `sudo python3 setup.py`,
@@ -154,19 +160,54 @@ def install_node(assume_yes: bool) -> None:
     ok(f"Node {ver} installed.")
 
 
+def _is_raspberry_pi_os() -> bool:
+    """True only on genuine Raspberry Pi OS (Raspbian), where the Foundation's
+    GPU-accelerated Chromium build (chromium-browser + rpi-chromium-mods) lives."""
+    try:
+        osr = Path("/etc/os-release").read_text().lower()
+    except OSError:
+        return False
+    return "raspbian" in osr or "raspberry pi os" in osr
+
+
 def install_system_packages() -> None:
     step("System packages (git, chromium, unclutter)")
     pkgs = ["git", "unclutter"]
-    # Pick whichever chromium package name exists on this OS.
-    chromium_pkg = "chromium-browser"
-    # On newer Debian/RPi OS the package is just "chromium".
-    probe = subprocess.run(
-        ["apt-cache", "show", "chromium-browser"],
-        capture_output=True, text=True,
-    )
-    if probe.returncode != 0 or not probe.stdout.strip():
-        chromium_pkg = "chromium"
-    pkgs.append(chromium_pkg)
+
+    # --- Chromium: prefer the OFFICIAL Raspberry Pi OS build ---------------- #
+    # On Raspberry Pi OS the Foundation ships `chromium-browser` together with
+    # `rpi-chromium-mods`, which wires in V4L2 hardware H.264 video decode and
+    # the right GPU flags. That is the build we want for a smooth kiosk — NOT
+    # the generic upstream `chromium` package, and never a snap/flatpak build
+    # (those ship software-only rendering and stutter badly on a Pi).
+    chromium_pkgs = []
+    if _is_raspberry_pi_os():
+        info("Raspberry Pi OS detected — using the official Foundation Chromium build.")
+        probe = subprocess.run(
+            ["apt-cache", "show", "chromium-browser"],
+            capture_output=True, text=True,
+        )
+        if probe.returncode == 0 and probe.stdout.strip():
+            chromium_pkgs = ["chromium-browser", "rpi-chromium-mods"]
+        else:
+            warn("chromium-browser not in apt sources; falling back to 'chromium'.")
+            chromium_pkgs = ["chromium"]
+    else:
+        # Non-RPi Debian/Ubuntu: pick whichever chromium .deb is available.
+        # (We deliberately avoid snap chromium, which has no HW video decode.)
+        warn("Not Raspberry Pi OS — installing the distro's chromium .deb.")
+        warn("For best video performance, run stream-hub on Raspberry Pi OS so the")
+        warn("GPU-accelerated chromium-browser + rpi-chromium-mods build is used.")
+        probe = subprocess.run(
+            ["apt-cache", "show", "chromium-browser"],
+            capture_output=True, text=True,
+        )
+        if probe.returncode == 0 and probe.stdout.strip():
+            chromium_pkgs = ["chromium-browser"]
+        else:
+            chromium_pkgs = ["chromium"]
+
+    pkgs.extend(chromium_pkgs)
     run(["sudo", "apt-get", "install", "-y", *pkgs])
     ok(f"Installed: {', '.join(pkgs)}")
 
@@ -310,6 +351,99 @@ X-GNOME-Autostart-enabled=true
     info("Exit kiosk mode any time with Ctrl+W / Alt+F4, or `pkill chromium`.")
 
 
+def create_nightly_restart(user: str, restart_time: str) -> None:
+    """Install a systemd timer that restarts the kiosk every night.
+
+    Chromium leaks memory over long uptimes and the Pi 3 only has 1 GB of RAM,
+    so a once-a-day restart of the browser (and the app server) keeps a 24/7
+    kiosk from slowly degrading or freezing. The timer runs a tiny script that
+    relaunches the kiosk for the logged-in desktop user.
+    """
+    step("Nightly kiosk auto-restart")
+
+    # Validate HH:MM.
+    try:
+        hh, mm = restart_time.split(":")
+        oncal = f"*-*-* {int(hh):02d}:{int(mm):02d}:00"
+    except (ValueError, AttributeError):
+        warn(f"Invalid --restart-time '{restart_time}'; using 04:00.")
+        oncal = "*-*-* 04:00:00"
+        restart_time = "04:00"
+
+    # 1) Restart script (project dir): bounce the server, then relaunch kiosk.
+    restart_sh = PROJECT_DIR / "nightly-restart.sh"
+    restart_sh.write_text(f"""#!/bin/bash
+# Auto-generated by setup.py — nightly restart of the stream-hub kiosk.
+# Restarts the app server, kills the old Chromium, and relaunches the kiosk
+# so memory is reclaimed once a day. Runs as user '{user}'.
+
+# Bounce the app server (clears any server-side memory creep too).
+sudo systemctl restart {APP_NAME} 2>/dev/null || true
+
+# Kill the current kiosk Chromium so it can be relaunched fresh.
+pkill -u "{user}" -f chromium 2>/dev/null || true
+sleep 3
+
+# Relaunch the kiosk on the running X display for this user.
+export DISPLAY="${{DISPLAY:-:0}}"
+export XAUTHORITY="$(getent passwd {user} | cut -d: -f6)/.Xauthority"
+nohup "{PROJECT_DIR}/kiosk.sh" >/dev/null 2>&1 &
+""")
+    os.chmod(restart_sh, 0o755)
+    ok(f"Wrote nightly restart script: {restart_sh}")
+
+    # 2) Allow the restart script to bounce the service without a password.
+    sudoers_line = (
+        f"{user} ALL=(root) NOPASSWD: /usr/bin/systemctl restart {APP_NAME}, "
+        f"/bin/systemctl restart {APP_NAME}\n"
+    )
+    sudoers_path = f"/etc/sudoers.d/{APP_NAME}-restart"
+    subprocess.run(
+        ["sudo", "tee", sudoers_path],
+        input=sudoers_line, text=True, stdout=subprocess.DEVNULL, check=True,
+    )
+    run(["sudo", "chmod", "0440", sudoers_path])
+
+    # 3) systemd service (oneshot) that runs the script as the desktop user.
+    svc = f"""[Unit]
+Description=Nightly restart of the {APP_NAME} kiosk
+
+[Service]
+Type=oneshot
+User={user}
+ExecStart={restart_sh}
+"""
+    svc_path = f"/etc/systemd/system/{APP_NAME}-restart.service"
+    subprocess.run(
+        ["sudo", "tee", svc_path],
+        input=svc, text=True, stdout=subprocess.DEVNULL, check=True,
+    )
+
+    # 4) systemd timer that fires the service every day at restart_time.
+    timer = f"""[Unit]
+Description=Run nightly {APP_NAME} kiosk restart
+
+[Timer]
+OnCalendar={oncal}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+    timer_path = f"/etc/systemd/system/{APP_NAME}-restart.timer"
+    subprocess.run(
+        ["sudo", "tee", timer_path],
+        input=timer, text=True, stdout=subprocess.DEVNULL, check=True,
+    )
+
+    run(["sudo", "systemctl", "daemon-reload"])
+    run(["sudo", "systemctl", "enable", f"{APP_NAME}-restart.timer"])
+    run(["sudo", "systemctl", "start", f"{APP_NAME}-restart.timer"])
+    ok(f"Nightly restart scheduled daily at {restart_time}.")
+    info(f"Check it:  systemctl list-timers {APP_NAME}-restart.timer")
+    info(f"Run it now to test:  sudo systemctl start {APP_NAME}-restart.service")
+
+
 # --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
@@ -323,6 +457,10 @@ def main() -> None:
                         help=f"Port to serve on (default {DEFAULT_PORT}).")
     parser.add_argument("--no-kiosk", action="store_true",
                         help="Skip Chromium kiosk setup (server only).")
+    parser.add_argument("--no-nightly-restart", action="store_true",
+                        help="Skip the nightly kiosk auto-restart timer.")
+    parser.add_argument("--restart-time", default="04:00", metavar="HH:MM",
+                        help="Local time for the nightly kiosk restart (default 04:00).")
     parser.add_argument("--no-system", action="store_true",
                         help="Build only: skip apt installs, systemd, and kiosk.")
     parser.add_argument("--user", default=getpass.getuser(),
@@ -337,6 +475,8 @@ def main() -> None:
     print(f"Port        : {args.port}")
     print(f"Mode        : {'build-only' if args.no_system else 'full setup'}"
           f"{' (no kiosk)' if args.no_kiosk and not args.no_system else ''}")
+    if not args.no_system and not args.no_kiosk and not args.no_nightly_restart:
+        print(f"Nightly restart: {args.restart_time}")
 
     check_not_root()
 
@@ -375,6 +515,8 @@ def main() -> None:
         create_systemd_service(args.user, args.port)
         if not args.no_kiosk:
             create_kiosk(args.user, args.port)
+            if not args.no_nightly_restart:
+                create_nightly_restart(args.user, args.restart_time)
     else:
         warn("systemctl not found — skipping auto-start service and kiosk setup.")
         info("Start the app manually with:")
@@ -386,6 +528,9 @@ def main() -> None:
     print(f"  • Server running on http://localhost:{args.port} (auto-starts on boot)")
     if not args.no_kiosk:
         print("  • Reboot to launch the full-screen kiosk:  sudo reboot")
+        if not args.no_nightly_restart:
+            print(f"  • Kiosk auto-restarts nightly at {args.restart_time} "
+                  "(reclaims Chromium memory)")
     print(f"  • Logs:   sudo journalctl -u {APP_NAME} -f")
     print(f"  • Status: sudo systemctl status {APP_NAME}")
 

@@ -21,8 +21,10 @@ Node.js does.
 - **Free vs. pay filtering** — defaults to free/prepaid titles; an **Include pay**
   toggle with a coupled **"up to $"** limit lets you include rentals/purchases up
   to a price cap.
-- **Trailers** play inline; the **play button** deep-links to the title on its
-  streaming service.
+- **Trailers** play inline by default; on low-memory kiosks you can switch to
+  **redirect mode** (Settings → “Open trailers in a new page”) so the trailer
+  opens on its watch page and the app frees memory while it plays.
+- The **play button** deep-links to the title on its streaming service.
 - **Configurable** services, ratings sources, and trailer sources (Settings screen).
 - Runs **fully offline** on a bundled catalog of 22 real titles; wire in your own
   API keys for live data.
@@ -54,8 +56,16 @@ python3 setup.py
 sudo reboot
 ```
 
+On Raspberry Pi OS, the script installs the **official Foundation Chromium build**
+(`chromium-browser` + `rpi-chromium-mods`) for hardware-accelerated H.264 video
+— not the generic or snap Chromium, which render in software and stutter. It also
+installs a **nightly kiosk auto-restart** (default 04:00) that bounces Chromium
+and the app once a day to reclaim memory on long-running kiosks — important on the
+1 GB Pi 3.
+
 Run `setup.py` as your normal user (e.g. `pi`), **not** with sudo — it calls sudo
-itself where needed. Flags: `--no-kiosk`, `--no-system` (build only), `--port`,
+itself where needed. Flags: `--no-kiosk`, `--no-nightly-restart`,
+`--restart-time HH:MM` (default 04:00), `--no-system` (build only), `--port`,
 `--user`, `--yes`. Full manual walkthrough in
 [RASPBERRY_PI_SETUP.md](./RASPBERRY_PI_SETUP.md).
 
