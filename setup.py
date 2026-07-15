@@ -16,7 +16,9 @@ What it does (idempotent — safe to re-run):
   1. Installs Node.js 20 (via NodeSource) and git + chromium + unclutter.
      On Raspberry Pi OS it installs the OFFICIAL Foundation Chromium build
      (chromium-browser + rpi-chromium-mods) for hardware-accelerated video.
-  2. Runs `npm install` and `npm run build` in this project directory.
+  2. Runs `npm install` and `npm run build` in this project directory. On
+     low-RAM boards (e.g. the 1 GB Pi 3) it temporarily adds a swapfile for
+     the build so it doesn't run out of memory, then removes it afterward.
   3. Optionally writes a .env file for API keys (interactive, skippable).
   4. Creates and enables a systemd service so the server starts on boot.
   5. Creates a Chromium kiosk autostart entry + launch script.
@@ -29,6 +31,8 @@ Run it from the project root:
     python3 setup.py --no-kiosk           # skip the Chromium kiosk (server only)
     python3 setup.py --no-nightly-restart # skip the nightly kiosk restart timer
     python3 setup.py --restart-time 03:30 # nightly restart at a custom time
+    python3 setup.py --no-swap-boost      # don't add temporary build swap
+    python3 setup.py --swap-size-mb 1024  # size of the temporary build swap
     python3 setup.py --no-system          # build only, no apt/systemd/kiosk changes
     python3 setup.py --port 8080          # serve on a custom port (default 5000)
     python3 setup.py --yes                # don't prompt (accept defaults, skip .env)
@@ -39,6 +43,7 @@ or npm will install as root and the kiosk will be configured for the wrong user.
 """
 
 import argparse
+import contextlib
 import getpass
 import os
 import shutil
@@ -212,12 +217,108 @@ def install_system_packages() -> None:
     ok(f"Installed: {', '.join(pkgs)}")
 
 
-def build_app() -> None:
+# Temporary swapfile used only during the build on low-RAM boards.
+SWAP_BOOST_PATH = "/var/swap.stream-hub-build"
+
+
+def _total_ram_mb() -> int | None:
+    """Total physical RAM in MB, or None if it can't be determined."""
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemTotal:"):
+                return int(line.split()[1]) // 1024  # kB -> MB
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _swap_total_mb() -> int:
+    """Current active swap in MB (0 if none / unknown)."""
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("SwapTotal:"):
+                return int(line.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        return 0
+    return 0
+
+
+@contextlib.contextmanager
+def swap_boost(enabled: bool, size_mb: int):
+    """Temporarily add a swapfile so the build doesn't OOM on a 1 GB board.
+
+    Only activates on Linux when: enabled, physical RAM looks tight
+    (< 1536 MB), and current swap is smaller than the requested size. The
+    swapfile is ALWAYS removed on exit — even if the build raises — so we don't
+    leave state behind or wear the SD card.
+    """
+    activated = False
+    if not enabled:
+        yield
+        return
+    if sys.platform != "linux" or not have("mkswap") or not have("swapon"):
+        yield
+        return
+
+    ram = _total_ram_mb()
+    have_swap = _swap_total_mb()
+    if ram is not None and ram >= 1536:
+        info(f"RAM looks sufficient ({ram} MB) — skipping temporary build swap.")
+        yield
+        return
+    if have_swap >= size_mb:
+        info(f"Existing swap ({have_swap} MB) is already ≥ {size_mb} MB — no boost needed.")
+        yield
+        return
+
+    step(f"Temporary build swap (+{size_mb} MB)")
+    info(f"Low RAM detected ({ram} MB); adding a temporary {size_mb} MB swapfile")
+    info("so `npm run build` doesn't run out of memory. It's removed afterward.")
+    try:
+        if os.path.exists(SWAP_BOOST_PATH):
+            run(["sudo", "swapoff", SWAP_BOOST_PATH], check=False)
+            run(["sudo", "rm", "-f", SWAP_BOOST_PATH], check=False)
+        # Allocate (fallocate is fast; dd is the portable fallback).
+        alloc = run(["sudo", "fallocate", "-l", f"{size_mb}M", SWAP_BOOST_PATH], check=False)
+        if alloc.returncode != 0:
+            run(["sudo", "dd", "if=/dev/zero", f"of={SWAP_BOOST_PATH}",
+                 "bs=1M", f"count={size_mb}", "status=none"])
+        run(["sudo", "chmod", "600", SWAP_BOOST_PATH])
+        run(["sudo", "mkswap", SWAP_BOOST_PATH])
+        run(["sudo", "swapon", SWAP_BOOST_PATH])
+        activated = True
+        ok(f"Temporary swap active ({size_mb} MB).")
+    except SystemExit:
+        # `run(check=True)` failed and called fail()->sys.exit; clean up first.
+        if activated:
+            run(["sudo", "swapoff", SWAP_BOOST_PATH], check=False)
+        run(["sudo", "rm", "-f", SWAP_BOOST_PATH], check=False)
+        raise
+    except Exception:
+        warn("Could not set up temporary swap; continuing without it.")
+        if activated:
+            run(["sudo", "swapoff", SWAP_BOOST_PATH], check=False)
+        run(["sudo", "rm", "-f", SWAP_BOOST_PATH], check=False)
+        activated = False
+
+    try:
+        yield
+    finally:
+        if activated:
+            step("Removing temporary build swap")
+            run(["sudo", "swapoff", SWAP_BOOST_PATH], check=False)
+            run(["sudo", "rm", "-f", SWAP_BOOST_PATH], check=False)
+            ok("Temporary swap removed; original swap configuration restored.")
+
+
+def build_app(swap_enabled: bool = True, swap_size_mb: int = 2048) -> None:
     step("Build stream-hub")
     if not (PROJECT_DIR / "package.json").exists():
         fail(f"No package.json in {PROJECT_DIR}. Run this script from the project root.")
     run(["npm", "install"], cwd=PROJECT_DIR)
-    run(["npm", "run", "build"], cwd=PROJECT_DIR)
+    # The Vite/esbuild build is the memory-hungry step; wrap it in the swap boost.
+    with swap_boost(swap_enabled, swap_size_mb):
+        run(["npm", "run", "build"], cwd=PROJECT_DIR)
     if not (PROJECT_DIR / "dist" / "index.cjs").exists():
         fail("Build did not produce dist/index.cjs. Check the npm output above.")
     ok("Frontend + server built (dist/index.cjs, dist/public/).")
@@ -461,6 +562,11 @@ def main() -> None:
                         help="Skip the nightly kiosk auto-restart timer.")
     parser.add_argument("--restart-time", default="04:00", metavar="HH:MM",
                         help="Local time for the nightly kiosk restart (default 04:00).")
+    parser.add_argument("--no-swap-boost", action="store_true",
+                        help="Don't add a temporary swapfile during the build "
+                             "(the boost only triggers on low-RAM boards).")
+    parser.add_argument("--swap-size-mb", type=int, default=2048, metavar="MB",
+                        help="Size of the temporary build swapfile in MB (default 2048).")
     parser.add_argument("--no-system", action="store_true",
                         help="Build only: skip apt installs, systemd, and kiosk.")
     parser.add_argument("--user", default=getpass.getuser(),
@@ -481,7 +587,7 @@ def main() -> None:
     check_not_root()
 
     if args.no_system:
-        build_app()
+        build_app(swap_enabled=not args.no_swap_boost, swap_size_mb=args.swap_size_mb)
         ok("Build complete. Start it with:")
         info(f"NODE_ENV=production PORT={args.port} node dist/index.cjs")
         info(f"Then open http://localhost:{args.port}")
@@ -498,7 +604,7 @@ def main() -> None:
         if not have("node"):
             fail("Node.js not found. Install Node 18+ with your distro's package "
                  "manager (dnf/pacman/apk/brew), then re-run: python3 setup.py --no-system")
-        build_app()
+        build_app(swap_enabled=not args.no_swap_boost, swap_size_mb=args.swap_size_mb)
         ok("Build complete. Start it with:")
         info(f"NODE_ENV=production PORT={args.port} node dist/index.cjs")
         info(f"Then open http://localhost:{args.port}")
@@ -508,7 +614,7 @@ def main() -> None:
     run(["sudo", "apt-get", "update"])
     install_node(args.yes)
     install_system_packages()
-    build_app()
+    build_app(swap_enabled=not args.no_swap_boost, swap_size_mb=args.swap_size_mb)
     maybe_write_env(args.yes)
 
     if have("systemctl"):
