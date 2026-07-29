@@ -37,6 +37,8 @@ export interface CatalogEntry {
   offers: Offer[]; // where + how it can be watched
   trailerId?: string; // youtube id
   keywords: string[]; // helps offline natural-language matching
+  cast?: string[]; // principal actors — powers actor-name search
+  setting?: string[]; // where the story is set — powers location/theme search
 }
 
 export const CATALOG: CatalogEntry[] = [
@@ -53,6 +55,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "hulu", type: "free" }, { service: "prime", type: "rent", price: 3.99 }],
     trailerId: "PLl99DlL6b4",
     keywords: ["prison", "hope", "friendship", "redemption", "classic", "uplifting", "drama"],
+    cast: ["Tim Robbins", "Morgan Freeman", "Bob Gunton"],
+    setting: ["Maine", "United States", "prison"],
   },
   {
     id: "imdb:tt0816692",
@@ -67,6 +71,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "prime", type: "free" }, { service: "appletv", type: "buy", price: 14.99 }],
     trailerId: "zSWdZVtXT7E",
     keywords: ["space", "wormhole", "time", "science", "epic", "emotional", "nolan", "sci-fi"],
+    cast: ["Matthew McConaughey", "Anne Hathaway", "Jessica Chastain"],
+    setting: ["space", "outer space", "future Earth"],
   },
   {
     id: "imdb:tt0468569",
@@ -81,6 +87,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "netflix", type: "free" }, { service: "prime", type: "rent", price: 3.99 }],
     trailerId: "EXeTwQWrcwY",
     keywords: ["batman", "joker", "superhero", "crime", "dark", "nolan", "action"],
+    cast: ["Christian Bale", "Heath Ledger", "Aaron Eckhart"],
+    setting: ["Gotham City", "United States"],
   },
   {
     id: "imdb:tt4154796",
@@ -95,6 +103,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "disney", type: "free" }],
     trailerId: "TcMBFSGVi1c",
     keywords: ["marvel", "superhero", "thanos", "epic", "action", "comic"],
+    cast: ["Robert Downey Jr.", "Chris Evans", "Scarlett Johansson", "Chris Hemsworth"],
+    setting: ["New York", "space", "United States"],
   },
   {
     id: "imdb:tt15398776",
@@ -109,6 +119,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "prime", type: "rent", price: 5.99 }, { service: "appletv", type: "rent", price: 5.99 }],
     trailerId: "uYPbbksJxIg",
     keywords: ["nuclear", "history", "war", "biopic", "nolan", "drama", "atomic bomb"],
+    cast: ["Cillian Murphy", "Emily Blunt", "Matt Damon", "Robert Downey Jr."],
+    setting: ["Los Alamos", "New Mexico", "United States"],
   },
   {
     id: "imdb:tt1375666",
@@ -123,6 +135,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "netflix", type: "free" }, { service: "prime", type: "buy", price: 12.99 }],
     trailerId: "YoHD9XEInc0",
     keywords: ["dreams", "heist", "mind", "spinning top", "nolan", "sci-fi", "thriller", "mind-bending"],
+    cast: ["Leonardo DiCaprio", "Joseph Gordon-Levitt", "Elliot Page", "Tom Hardy"],
+    setting: ["Paris", "Tokyo", "dreams", "Los Angeles"],
   },
   {
     id: "imdb:tt0109830",
@@ -137,6 +151,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "prime", type: "free" }, { service: "pluto", type: "free" }],
     trailerId: "bLvqoHBptjg",
     keywords: ["feel-good", "uplifting", "history", "romance", "classic", "drama", "heartwarming"],
+    cast: ["Tom Hanks", "Robin Wright", "Gary Sinise"],
+    setting: ["Alabama", "Vietnam", "United States"],
   },
   {
     id: "imdb:tt6751668",
@@ -151,6 +167,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "hulu", type: "free" }, { service: "prime", type: "rent", price: 3.99 }],
     trailerId: "5xH0HfJHsaY",
     keywords: ["korean", "class", "thriller", "dark comedy", "oscar", "foreign", "drama"],
+    cast: ["Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"],
+    setting: ["Seoul", "South Korea"],
   },
   {
     id: "imdb:tt0903747",
@@ -165,6 +183,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "netflix", type: "free" }],
     trailerId: "HhesaQXLuRY",
     keywords: ["crime", "drugs", "antihero", "tv", "series", "drama", "binge"],
+    cast: ["Bryan Cranston", "Aaron Paul", "Anna Gunn"],
+    setting: ["Albuquerque", "New Mexico", "United States"],
   },
   {
     id: "imdb:tt0944947",
@@ -179,6 +199,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "prime", type: "free" }],
     trailerId: "KPLWWIOCOOQ",
     keywords: ["fantasy", "dragons", "medieval", "epic", "tv", "series", "war", "binge"],
+    cast: ["Emilia Clarke", "Kit Harington", "Peter Dinklage", "Lena Headey"],
+    setting: ["Westeros", "fantasy world"],
   },
   {
     id: "imdb:tt4574334",
@@ -193,6 +215,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "netflix", type: "free" }],
     trailerId: "b9EkMc79ZSU",
     keywords: ["80s", "sci-fi", "horror", "kids", "supernatural", "tv", "series", "nostalgic"],
+    cast: ["Millie Bobby Brown", "Finn Wolfhard", "Winona Ryder", "David Harbour"],
+    setting: ["Hawkins", "Indiana", "United States"],
   },
   {
     id: "imdb:tt2861424",
@@ -207,6 +231,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "hulu", type: "free" }, { service: "netflix", type: "free" }],
     trailerId: "Atli0v0i3lc",
     keywords: ["animation", "comedy", "sci-fi", "adult", "tv", "series", "funny"],
+    cast: ["Justin Roiland", "Chris Parnell", "Spencer Grammer"],
+    setting: ["space", "multiverse"],
   },
   {
     id: "imdb:tt5180504",
@@ -221,6 +247,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "netflix", type: "free" }],
     trailerId: "ndl1W4ltcmg",
     keywords: ["fantasy", "monsters", "magic", "medieval", "tv", "series", "action"],
+    cast: ["Henry Cavill", "Anya Chalotra", "Freya Allan"],
+    setting: ["the Continent", "fantasy world"],
   },
   {
     id: "imdb:tt2306299",
@@ -235,6 +263,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "prime", type: "free" }, { service: "hulu", type: "free" }],
     trailerId: "I6Mwq7c4hAk",
     keywords: ["vikings", "history", "war", "medieval", "tv", "series", "action"],
+    cast: ["Travis Fimmel", "Katheryn Winnick", "Clive Standen"],
+    setting: ["Scandinavia", "Norway", "England"],
   },
   {
     id: "imdb:tt1856101",
@@ -249,6 +279,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "netflix", type: "free" }, { service: "prime", type: "rent", price: 3.99 }],
     trailerId: "gCcx85zbxz4",
     keywords: ["sci-fi", "future", "dystopia", "replicant", "noir", "visual", "drama"],
+    cast: ["Ryan Gosling", "Harrison Ford", "Ana de Armas"],
+    setting: ["Los Angeles", "future", "dystopia"],
   },
   {
     id: "imdb:tt0114369",
@@ -263,6 +295,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "prime", type: "rent", price: 2.99 }, { service: "tubi", type: "free" }],
     trailerId: "znmZoVkCjpI",
     keywords: ["serial killer", "detective", "dark", "thriller", "crime", "fincher", "mystery"],
+    cast: ["Brad Pitt", "Morgan Freeman", "Kevin Spacey", "Gwyneth Paltrow"],
+    setting: ["unnamed city", "United States"],
   },
   {
     id: "imdb:tt0133093",
@@ -277,6 +311,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "netflix", type: "free" }, { service: "prime", type: "buy", price: 9.99 }],
     trailerId: "vKQi3bBA1y8",
     keywords: ["sci-fi", "hacker", "simulation", "90s", "action", "cyberpunk", "classic"],
+    cast: ["Keanu Reeves", "Laurence Fishburne", "Carrie-Anne Moss"],
+    setting: ["simulation", "dystopia", "future"],
   },
   {
     id: "imdb:tt0245429",
@@ -291,6 +327,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "hulu", type: "free" }, { service: "tubi", type: "free" }],
     trailerId: "ByXuk9QqQkk",
     keywords: ["anime", "ghibli", "fantasy", "family", "magical", "animation", "japanese"],
+    cast: ["Rumi Hiiragi", "Miyu Irino", "Mari Natsuki"],
+    setting: ["Japan", "spirit world"],
   },
   {
     id: "imdb:tt0468565",
@@ -305,6 +343,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "discovery", type: "free" }, { service: "prime", type: "buy", price: 19.99 }],
     trailerId: "c8aFcHFu8QM",
     keywords: ["nature", "documentary", "wildlife", "earth", "attenborough", "relaxing", "educational"],
+    cast: ["David Attenborough"],
+    setting: ["Earth", "worldwide", "nature"],
   },
   {
     id: "imdb:tt9777666",
@@ -319,6 +359,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "hulu", type: "free" }, { service: "disney", type: "free" }],
     trailerId: "rUSdnGEqhfo",
     keywords: ["japan", "samurai", "history", "war", "prestige", "tv", "series", "drama"],
+    cast: ["Hiroyuki Sanada", "Cosmo Jarvis", "Anna Sawai"],
+    setting: ["Japan", "feudal Japan"],
   },
   {
     id: "imdb:tt3581920",
@@ -333,6 +375,8 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "prime", type: "free" }],
     trailerId: "uLtkt8BonwM",
     keywords: ["apocalypse", "zombie", "survival", "game adaptation", "tv", "series", "drama"],
+    cast: ["Pedro Pascal", "Bella Ramsey"],
+    setting: ["United States", "post-apocalyptic America"],
   },
   {
     id: "imdb:tt1745960",
@@ -347,5 +391,139 @@ export const CATALOG: CatalogEntry[] = [
     offers: [{ service: "prime", type: "rent", price: 3.99 }, { service: "appletv", type: "rent", price: 3.99 }],
     trailerId: "qSqVVswa420",
     keywords: ["action", "fighter jets", "navy", "feel-good", "blockbuster", "sequel"],
+    cast: ["Tom Cruise", "Miles Teller", "Jennifer Connelly", "Val Kilmer"],
+    setting: ["San Diego", "California", "United States", "Navy"],
+  },
+
+  // ---- Denzel Washington films (powers "movies with Denzel Washington") ---- //
+  {
+    id: "imdb:tt0181689",
+    title: "Training Day",
+    mediaType: "movie",
+    year: 2001,
+    runtime: "2h 2m",
+    genres: ["Crime", "Drama", "Thriller"],
+    overview:
+      "A rookie cop spends his first day as a Los Angeles narcotics officer with a rogue detective who isn't what he appears.",
+    ratings: { imdb: "7.7", rt: "73%", metacritic: "71", tmdb: "7.5", letterboxd: "3.8" },
+    offers: [{ service: "netflix", type: "free" }, { service: "prime", type: "rent", price: 3.99 }],
+    trailerId: "S1wZg55zJv4",
+    keywords: ["police", "corruption", "crime", "thriller", "gritty", "drama"],
+    cast: ["Denzel Washington", "Ethan Hawke", "Eva Mendes"],
+    setting: ["Los Angeles", "California", "United States"],
+  },
+  {
+    id: "imdb:tt0455944",
+    title: "The Equalizer",
+    mediaType: "movie",
+    year: 2014,
+    runtime: "2h 12m",
+    genres: ["Action", "Crime", "Thriller"],
+    overview:
+      "A former black-ops operative living a quiet life comes out of retirement to rescue a young girl from Russian gangsters.",
+    ratings: { imdb: "7.2", rt: "61%", metacritic: "57", tmdb: "7.3", letterboxd: "3.4" },
+    offers: [{ service: "netflix", type: "free" }, { service: "prime", type: "rent", price: 3.99 }],
+    trailerId: "IY2j_Ncy4-w",
+    keywords: ["vigilante", "action", "revenge", "thriller", "crime"],
+    cast: ["Denzel Washington", "Marton Csokas", "Chloë Grace Moretz"],
+    setting: ["Boston", "Massachusetts", "United States"],
+  },
+  {
+    id: "imdb:tt0790636",
+    title: "Flight",
+    mediaType: "movie",
+    year: 2012,
+    runtime: "2h 18m",
+    genres: ["Drama", "Thriller"],
+    overview:
+      "An airline pilot miraculously crash-lands his plane, but an investigation soon reveals a troubling truth about him.",
+    ratings: { imdb: "7.3", rt: "78%", metacritic: "76", tmdb: "7.0", letterboxd: "3.4" },
+    offers: [{ service: "prime", type: "rent", price: 3.99 }, { service: "tubi", type: "free" }],
+    trailerId: "nENY-93zwyk",
+    keywords: ["pilot", "addiction", "drama", "courtroom", "redemption"],
+    cast: ["Denzel Washington", "Don Cheadle", "Kelly Reilly"],
+    setting: ["Atlanta", "Georgia", "United States"],
+  },
+  {
+    id: "imdb:tt2671706",
+    title: "Fences",
+    mediaType: "movie",
+    year: 2016,
+    runtime: "2h 19m",
+    genres: ["Drama"],
+    overview:
+      "A working-class African-American father tries to raise his family in the 1950s while coming to terms with his own life.",
+    ratings: { imdb: "7.2", rt: "92%", metacritic: "79", tmdb: "7.2", letterboxd: "3.7" },
+    offers: [{ service: "prime", type: "free" }, { service: "appletv", type: "rent", price: 3.99 }],
+    trailerId: "9RN2ImsaoTM",
+    keywords: ["family", "drama", "1950s", "play adaptation", "fatherhood"],
+    cast: ["Denzel Washington", "Viola Davis", "Stephen Henderson"],
+    setting: ["Pittsburgh", "Pennsylvania", "United States"],
+  },
+
+  // ---- Films set in Hawaii (powers "movies set in Hawaii") ---- //
+  {
+    id: "imdb:tt1049413",
+    title: "The Descendants",
+    mediaType: "movie",
+    year: 2011,
+    runtime: "1h 55m",
+    genres: ["Drama", "Comedy"],
+    overview:
+      "A Honolulu land baron tries to reconnect with his two daughters after his wife is left comatose by a boating accident.",
+    ratings: { imdb: "7.3", rt: "89%", metacritic: "84", tmdb: "7.0", letterboxd: "3.5" },
+    offers: [{ service: "disney", type: "free" }, { service: "prime", type: "rent", price: 3.99 }],
+    trailerId: "Vqnk__2rEZI",
+    keywords: ["family", "grief", "drama", "island", "bittersweet"],
+    cast: ["George Clooney", "Shailene Woodley", "Beau Bridges"],
+    setting: ["Hawaii", "Honolulu", "Oahu", "Kauai", "United States", "island"],
+  },
+  {
+    id: "imdb:tt1068680",
+    title: "Forgetting Sarah Marshall",
+    mediaType: "movie",
+    year: 2008,
+    runtime: "1h 51m",
+    genres: ["Comedy", "Romance"],
+    overview:
+      "Heartbroken after a breakup, a man takes a Hawaiian vacation only to discover his ex and her new boyfriend at the same resort.",
+    ratings: { imdb: "7.1", rt: "85%", metacritic: "67", tmdb: "6.9", letterboxd: "3.4" },
+    offers: [{ service: "netflix", type: "free" }, { service: "prime", type: "rent", price: 3.99 }],
+    trailerId: "tjNhXWNZAMw",
+    keywords: ["breakup", "comedy", "romance", "vacation", "resort"],
+    cast: ["Jason Segel", "Kristen Bell", "Mila Kunis", "Russell Brand"],
+    setting: ["Hawaii", "Oahu", "Turtle Bay", "United States", "island"],
+  },
+  {
+    id: "imdb:tt0405469",
+    title: "50 First Dates",
+    mediaType: "movie",
+    year: 2004,
+    runtime: "1h 39m",
+    genres: ["Comedy", "Romance"],
+    overview:
+      "A marine veterinarian falls for a woman with short-term memory loss and must win her over anew every single day.",
+    ratings: { imdb: "6.8", rt: "45%", metacritic: "48", tmdb: "6.8", letterboxd: "3.2" },
+    offers: [{ service: "netflix", type: "free" }, { service: "hulu", type: "free" }],
+    trailerId: "tRUR-Cw6Wro",
+    keywords: ["romance", "comedy", "memory", "feel-good", "beach"],
+    cast: ["Adam Sandler", "Drew Barrymore", "Rob Schneider"],
+    setting: ["Hawaii", "Oahu", "United States", "island", "beach"],
+  },
+  {
+    id: "imdb:tt0325980",
+    title: "Pirates of the Caribbean: The Curse of the Black Pearl",
+    mediaType: "movie",
+    year: 2003,
+    runtime: "2h 23m",
+    genres: ["Action", "Adventure", "Fantasy"],
+    overview:
+      "Blacksmith Will Turner teams up with eccentric pirate Jack Sparrow to save his love from cursed pirates.",
+    ratings: { imdb: "8.1", rt: "79%", metacritic: "63", tmdb: "7.8", letterboxd: "3.9" },
+    offers: [{ service: "disney", type: "free" }],
+    trailerId: "i5jTt8T0zjw",
+    keywords: ["pirates", "adventure", "fantasy", "caribbean", "swashbuckler"],
+    cast: ["Johnny Depp", "Orlando Bloom", "Keira Knightley"],
+    setting: ["Caribbean", "Hawaii", "island", "high seas"],
   },
 ];

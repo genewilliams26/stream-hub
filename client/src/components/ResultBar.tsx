@@ -1,9 +1,8 @@
-import { useState } from "react";
 import type { Production } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
 import { RatingBadge } from "./RatingBadge";
 import { SourceChip } from "./SourceChip";
-import { TrailerDialog } from "./TrailerDialog";
+import { usePlayer } from "./player/PlayerContext";
 import { posterGradient, initials } from "@/lib/poster";
 import { Play, Film, Tv } from "lucide-react";
 
@@ -20,11 +19,13 @@ export function ResultBar({
   trailerMode?: "embed" | "redirect";
   onToggleSeen: (p: Production, seen: boolean) => void;
 }) {
-  const [trailerOpen, setTrailerOpen] = useState(false);
   const grad = posterGradient(p.title);
+  const player = usePlayer();
 
   // Watch page to send the user to in redirect mode (falls back to embed URL).
   const watchUrl = p.trailerWatchUrl || p.trailerUrl;
+  // Primary play target: the cheapest/free offer's deep link (already sorted).
+  const primary = p.availability[0];
 
   function openTrailer() {
     if (trailerMode === "redirect" && watchUrl) {
@@ -34,10 +35,17 @@ export function ResultBar({
       window.location.assign(watchUrl);
       return;
     }
-    setTrailerOpen(true);
+    if (!p.trailerUrl) return;
+    // Open the split-view in-app player (starts fullscreen; Esc -> side panel).
+    player.play({
+      id: p.id,
+      title: p.title,
+      embedUrl: p.trailerUrl,
+      watchUrl: p.trailerWatchUrl,
+      serviceName: primary?.serviceName,
+      serviceDeepLink: primary?.deepLink,
+    });
   }
-  // Primary play target: the cheapest/free offer's deep link (already sorted).
-  const primary = p.availability[0];
 
   return (
     <article
@@ -160,14 +168,6 @@ export function ResultBar({
         </div>
       </div>
 
-      {trailerMode === "embed" && (
-        <TrailerDialog
-          open={trailerOpen}
-          onOpenChange={setTrailerOpen}
-          title={p.title}
-          trailerUrl={p.trailerUrl}
-        />
-      )}
     </article>
   );
 }

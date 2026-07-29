@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
   includePay: false,
   payLimit: 0,
   aiSearch: true,
+  region: "US",
   services: [
     {
       id: "netflix",
@@ -47,6 +48,27 @@ export const DEFAULT_SETTINGS: SettingsData = {
       enabled: true,
       searchUrlTemplate: "https://www.hulu.com/search?q={q}",
       color: "#1CE783",
+    },
+    {
+      id: "max",
+      name: "Max",
+      enabled: true,
+      searchUrlTemplate: "https://play.max.com/search?q={q}",
+      color: "#0046FF",
+    },
+    {
+      id: "paramount",
+      name: "Paramount+",
+      enabled: true,
+      searchUrlTemplate: "https://www.paramountplus.com/search/?query={q}",
+      color: "#0064FF",
+    },
+    {
+      id: "peacock",
+      name: "Peacock",
+      enabled: true,
+      searchUrlTemplate: "https://www.peacocktv.com/search?q={q}",
+      color: "#000000",
     },
     {
       id: "discovery",

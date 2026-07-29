@@ -24,13 +24,10 @@ import type {
  * app is fully functional on the Raspberry Pi out of the box.
  */
 
-export function hasLiveProviders(): boolean {
-  return Boolean(
-    process.env.TMDB_API_KEY ||
-      process.env.OMDB_API_KEY ||
-      process.env.WATCHMODE_API_KEY,
-  );
-}
+// Canonical live-provider detection lives in live.ts (the module that actually
+// talks to TMDB/Watchmode/OMDb). Re-exported here so existing imports keep
+// working and there is a single source of truth.
+export { hasLiveProviders } from "./live";
 
 // ---- Deep link builder (configurable per-service in settings) ----
 function buildDeepLink(template: string, title: string): string {
@@ -102,6 +99,8 @@ export function entryToProduction(
     year: entry.year,
     runtime: entry.runtime,
     genres: entry.genres,
+    cast: entry.cast ?? [],
+    setting: entry.setting ?? [],
     overview: entry.overview,
     posterUrl: "", // UI renders a generated gradient poster from the title
     backdropUrl: "",
@@ -149,8 +148,9 @@ export function getCandidates(
   settings: SettingsData,
   seenIds: Set<string>,
 ): Production[] {
-  // NOTE: live path stub — wire TMDB/Watchmode here when keys exist.
-  // if (hasLiveProviders()) return await fetchFromProviders(settings, seenIds);
+  // Offline candidate set from the bundled catalog. The LIVE query-driven path
+  // (TMDB/Watchmode/OMDb) is handled in search.ts -> live.ts; this remains the
+  // browse-mode + offline-fallback source.
   return CATALOG.map((e) => entryToProduction(e, settings, seenIds))
     .filter((p) => p.availability.length > 0)
     .map((p) => applyPayFilter(p, settings))

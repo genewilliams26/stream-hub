@@ -4,6 +4,7 @@ import type { Server } from "node:http";
 import { storage } from "./storage";
 import { runSearch } from "./search";
 import { hasLiveProviders } from "./providers";
+import { tmdbKey, omdbKey, watchmodeKey } from "./live";
 import { insertSeenSchema, settingsDataSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -56,6 +57,11 @@ export async function registerRoutes(
   app.get("/api/status", (_req, res) => {
     res.json({
       liveProviders: hasLiveProviders(),
+      providers: {
+        tmdb: Boolean(tmdbKey()),
+        omdb: Boolean(omdbKey()),
+        watchmode: Boolean(watchmodeKey()),
+      },
       aiAvailable: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_BASE_URL),
     });
   });

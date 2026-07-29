@@ -84,6 +84,9 @@ export const settingsDataSchema = z.object({
   // pay offer exceeds this are hidden. 0 / undefined means "no limit".
   payLimit: z.number().default(0),
   aiSearch: z.boolean().default(true), // natural-language interpretation on/off
+  // ISO 3166-1 country code for region-specific streaming availability & pricing
+  // (used by the live TMDB/Watchmode providers). Defaults to US.
+  region: z.string().default("US"),
   // How trailers play. "embed" (default) plays in an in-app modal iframe.
   // "redirect" navigates the whole tab to the trailer's watch page and lets
   // the user return to stream-hub afterwards. On low-RAM kiosks (e.g. the 1 GB
@@ -128,6 +131,10 @@ export const productionSchema = z.object({
   year: z.number().optional(),
   runtime: z.string().optional(), // "2h 16m" or "3 seasons"
   genres: z.array(z.string()).default([]),
+  // Principal cast (actor names) — powers "movies with Denzel Washington".
+  cast: z.array(z.string()).default([]),
+  // Where the story is set (locations/regions) — powers "movies set in Hawaii".
+  setting: z.array(z.string()).default([]),
   overview: z.string().default(""),
   posterUrl: z.string().default(""),
   backdropUrl: z.string().default(""),

@@ -1,5 +1,5 @@
-// stream-hub logo — concentric "broadcast" arcs converging on a play triangle.
-// Monochrome, uses currentColor so it adapts to theme.
+// Williams Family Stream-Hub logo — concentric "broadcast" arcs converging on
+// a play triangle. Monochrome, uses currentColor so it adapts to theme.
 export function Logo({ className = "" }: { className?: string }) {
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
@@ -8,7 +8,7 @@ export function Logo({ className = "" }: { className?: string }) {
         height="28"
         viewBox="0 0 32 32"
         fill="none"
-        aria-label="stream-hub"
+        aria-label="Williams Family Stream-Hub"
         className="text-primary"
       >
         <path
@@ -20,8 +20,13 @@ export function Logo({ className = "" }: { className?: string }) {
         />
         <path d="M16 10.5 25 16l-9 5.5z" fill="currentColor" />
       </svg>
-      <span className="text-lg font-semibold tracking-tight text-foreground">
-        stream<span className="text-primary">-hub</span>
+      <span className="flex flex-col leading-none">
+        <span className="text-[0.65rem] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          Williams Family
+        </span>
+        <span className="text-lg font-semibold tracking-tight text-foreground">
+          Stream<span className="text-primary">-Hub</span>
+        </span>
       </span>
     </div>
   );

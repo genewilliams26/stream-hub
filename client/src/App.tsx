@@ -7,6 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Settings from "@/pages/settings";
+import { PlayerProvider, usePlayer } from "@/components/player/PlayerContext";
+import { PlayerPanel } from "@/components/player/PlayerPanel";
 
 function AppRouter() {
   return (
@@ -18,14 +20,34 @@ function AppRouter() {
   );
 }
 
+// Shifts the whole app to the left half when the player is docked on the right,
+// so search field, results, and controls occupy the left column.
+function PlayerLayout({ children }: { children: React.ReactNode }) {
+  const { playing, mode } = usePlayer();
+  const docked = playing && mode === "docked";
+  return (
+    <div
+      className={docked ? "transition-[padding] duration-300 md:pr-[50vw]" : "transition-[padding] duration-300"}
+      data-testid="app-shell"
+    >
+      {children}
+    </div>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router hook={useHashLocation}>
-          <AppRouter />
-        </Router>
+        <PlayerProvider>
+          <Toaster />
+          <PlayerLayout>
+            <Router hook={useHashLocation}>
+              <AppRouter />
+            </Router>
+          </PlayerLayout>
+          <PlayerPanel />
+        </PlayerProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
