@@ -1,6 +1,6 @@
 # stream-hub — Raspberry Pi 3 Kiosk Setup Guide
 
-This guide gets stream-hub running as a full-screen, auto-starting kiosk on a Raspberry Pi 3 (any Linux OS — Raspberry Pi OS / Raspbian recommended). It also covers wiring in your own live API keys so search pulls real catalog and ratings data instead of the bundled mock dataset.
+This guide gets stream-hub running as a full-screen, auto-starting kiosk on a Raspberry Pi 3 (any Linux OS — Raspberry Pi OS / Raspbian recommended). It also covers wiring in your own live API keys so search pulls real catalog, availability, and ratings data in real time instead of the bundled offline dataset.
 
 > **Tip:** the easiest path is the one-command provisioner `python3 setup.py` (see the README). It does everything below automatically, including the Pi 3 performance tuning in section 9. This guide is the manual walkthrough.
 
@@ -123,6 +123,12 @@ sudo apt-get install -y chromium-browser rpi-chromium-mods unclutter
 
 > **Use the official Raspberry Pi OS Chromium.** On Raspberry Pi OS, `chromium-browser` together with `rpi-chromium-mods` gives you hardware-accelerated H.264 video decode and the correct GPU flags — this is what makes trailer playback smooth. Do **not** use a snap or flatpak Chromium: those render video in software and will stutter badly on a Pi. On 64-bit Raspberry Pi OS the package is still `chromium-browser`; on plain Debian it may be `chromium` (adjust `kiosk.sh` to match).
 
+### Trailer player and the Esc key
+
+Stream-hub plays trailers in a **split-view in-app player**: a trailer opens **fullscreen**, and pressing **Esc** collapses it into a half-width panel docked on the right while the search UI shifts left. Pressing **Esc** again from the docked panel closes it. The player keeps playing when you move between the home and Settings screens.
+
+On a kiosk this matters because Chromium's `--kiosk` flag intercepts `Esc` for its own fullscreen handling in some builds. Stream-hub's player listens for `Esc` at the page level, so it works normally inside `--app=` kiosk mode (used in `kiosk.sh` below). If you ever switch to a launcher that swallows `Esc`, use the on-screen collapse/close buttons at the panel's top-right instead. On very low-memory kiosks, prefer **redirect mode** (section 9) so trailers open on their own page rather than layering a player over the app.
+
 ### Create the autostart entry
 
 For the LXDE desktop (default on Raspberry Pi OS):
@@ -199,7 +205,7 @@ StreamHub is touch-friendly and the layout adapts down to small displays (tested
 
 ## 7. Adding your live API keys (optional but recommended)
 
-Out of the box, StreamHub ships with a bundled mock catalog (22 popular titles with real ratings and trailers) so it works offline with zero configuration. To pull **live** catalog, availability, and ratings data, add your own API keys.
+Out of the box, StreamHub ships with a bundled offline catalog (31 popular titles, each enriched with cast and setting, with real ratings and trailers) so it works with zero configuration and never shows a blank screen. To pull **live** catalog, availability, and ratings data in real time, add your own API keys. `TMDB_API_KEY` is the backbone — without it, search stays on the offline catalog even if the other keys are set.
 
 Create an environment file the systemd service reads:
 
@@ -210,20 +216,23 @@ nano ~/stream-hub/.env
 Add the keys you have (all optional — add only the ones you want):
 
 ```bash
-# --- Catalog / metadata / trailers ---
+# --- Catalog / metadata / trailers (BACKBONE — required for any live search) ---
 TMDB_API_KEY=your_tmdb_key_here
 
 # --- Ratings (IMDb / Rotten Tomatoes / Metacritic via OMDb) ---
 OMDB_API_KEY=your_omdb_key_here
 
-# --- Streaming availability (which service has each title) ---
+# --- Streaming availability + real deep links (which service has each title) ---
 WATCHMODE_API_KEY=your_watchmode_key_here
 
 # --- AI natural-language search (optional) ---
-# Lets the app interpret queries like "that movie with the spinning top".
-# Without it, StreamHub falls back to a built-in keyword/genre matcher.
+# Routes queries to title / actor / keyword searches, e.g. interpreting
+# "movies with Denzel Washington" as an actor search. Without it, StreamHub
+# falls back to a built-in heuristic keyword/genre/actor matcher.
 ANTHROPIC_API_KEY=your_anthropic_key_here
 ```
+
+> **Region.** Streaming availability is region-specific. StreamHub defaults to the US (`region: "US"` in settings). If your household is elsewhere, set the region in the in-app Settings screen so Watchmode returns the right services and deep links (ISO 3166-1 country code).
 
 Where to get free keys:
 - **TMDB** (catalog, posters, trailers): https://www.themoviedb.org/settings/api
@@ -237,9 +246,9 @@ After editing `.env`, restart the service:
 sudo systemctl restart stream-hub
 ```
 
-Visit **http://localhost:5000/api/status** — when live providers are configured it reports `"liveProviders": true`, and `"aiAvailable": true` when an AI key is present.
+Visit **http://localhost:5000/api/status** — it reports `"liveProviders": true` when TMDB is configured, a per-provider breakdown under `"providers"` (`tmdb` / `omdb` / `watchmode`), and `"aiAvailable": true` when an AI key is present.
 
-> **Where the integration lives:** the data layer is isolated in `server/providers.ts`. The `getCandidates()` function is the single seam where mock data is swapped for live API calls — it already contains commented stubs for TMDB / Watchmode wiring. The free/pay filtering, ratings, and "seen" logic all work identically whether the data is mock or live.
+> **Where the integration lives:** the live provider layer is fully implemented in `server/live.ts` (TMDB title/actor/keyword search, Watchmode availability + real deep links, OMDb ratings — region-aware, with an 8-second timeout and graceful fallback). `server/search.ts` classifies each query and runs the live search, then falls back to the offline catalog in `server/providers.ts` (`getCandidates()`) whenever no keys are set or a live request fails or times out. The free/pay filtering, ratings, and "seen" logic all work identically whether the data is offline or live — so the kiosk degrades cleanly if the network drops.
 
 ### Streaming-service account secrets
 
@@ -319,7 +328,9 @@ sudo dphys-swapfile setup && sudo dphys-swapfile swapon
 | Chromium shows "can't connect" on boot | The server wasn't ready yet. The `kiosk.sh` script waits for `/api/status` — confirm the systemd service is running: `sudo systemctl status stream-hub`. |
 | `node: command not found` in systemd | Use the full path in `ExecStart` (`which node` to find it, often `/usr/bin/node`). |
 | Screen goes blank after a few minutes | Ensure `xset s off`, `xset -dpms`, `xset s noblank` ran (they're in `kiosk.sh`). |
-| Search returns only mock titles | No live API keys set, or the service wasn't restarted after editing `.env`. Check `/api/status`. |
+| Search returns only offline catalog titles | No `TMDB_API_KEY` set (it's the backbone), or the service wasn't restarted after editing `.env`, or the network is down and it fell back offline. Check `/api/status`. |
+| Availability / deep links look wrong for your country | Set the correct **region** in the in-app Settings screen (defaults to US). |
+| Esc doesn't collapse the trailer | Rare with `--app=` kiosk mode; use the collapse/close buttons at the panel's top-right, or switch to redirect mode (section 9). |
 | `npm install` fails with memory errors | Add swap: `sudo dphys-swapfile swapoff && sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile && sudo dphys-swapfile setup && sudo dphys-swapfile swapon`. |
 | Wrong Chromium package name | On newer OS, use `chromium` instead of `chromium-browser` in both the apt install and `kiosk.sh`. |
 

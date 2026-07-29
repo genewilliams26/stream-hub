@@ -21,13 +21,21 @@ Node.js does.
 - **Free vs. pay filtering** — defaults to free/prepaid titles; an **Include pay**
   toggle with a coupled **"up to $"** limit lets you include rentals/purchases up
   to a price cap.
-- **Trailers** play inline by default; on low-memory kiosks you can switch to
-  **redirect mode** (Settings → “Open trailers in a new page”) so the trailer
-  opens on its watch page and the app frees memory while it plays.
+- **Split-view in-app trailer player.** Clicking a trailer opens it **fullscreen**;
+  press **Esc** to collapse it into a **half-width panel docked on the right** while
+  the search field, results, and controls shift to the left so you can keep
+  browsing. A fullscreen button re-expands it, and the panel deep-links to the
+  title on its streaming service. The player **persists across pages** — navigate
+  to Settings and back without interrupting playback. On low-memory kiosks you can
+  switch to **redirect mode** (Settings → “Open trailers in a new page”) so the
+  trailer opens on its own watch page and the app frees memory while it plays.
 - The **play button** deep-links to the title on its streaming service.
 - **Configurable** services, ratings sources, and trailer sources (Settings screen).
-- Runs **fully offline** on a bundled catalog of 22 real titles; wire in your own
-  API keys for live data.
+- **Live real-time search** across TMDB, Watchmode, and OMDb when API keys are
+  present — natural-language queries are routed to title / actor / keyword
+  searches. Runs **fully offline** on a bundled catalog of 31 real titles
+  (enriched with cast and setting) when no keys are configured, so the kiosk is
+  never blank.
 
 ## Quick start (run locally)
 
@@ -71,8 +79,10 @@ itself where needed. Flags: `--no-kiosk`, `--no-nightly-restart`,
 
 ## Live API keys (optional)
 
-Out of the box stream-hub uses a bundled mock catalog. To pull live catalog,
-ratings, availability, and AI search, add keys to a `.env` file:
+Out of the box stream-hub uses a bundled offline catalog of 31 titles. To pull
+live catalog, ratings, availability, and AI-routed search in real time, add keys
+to a `.env` file (all optional; TMDB is the backbone — without it, search stays
+offline):
 
 | Variable | Purpose | Get a key |
 | --- | --- | --- |
@@ -81,9 +91,13 @@ ratings, availability, and AI search, add keys to a `.env` file:
 | `WATCHMODE_API_KEY` | Streaming availability | https://api.watchmode.com/ |
 | `ANTHROPIC_API_KEY` | AI natural-language search | https://console.anthropic.com/ |
 
-The data layer is isolated in `server/providers.ts` — `getCandidates()` is the
-single seam where mock data is swapped for live API calls. Filtering, ratings, and
-"seen" logic work identically with mock or live data.
+The live provider layer lives in `server/live.ts` (TMDB search + Watchmode
+availability/deep links + OMDb ratings, region-aware, with an 8s timeout and
+graceful fallback). `server/search.ts` classifies each query (AI or heuristic)
+into a title / actor / keyword strategy, runs the live search, and falls back to
+the offline catalog in `server/providers.ts` (`getCandidates()`) when no keys are
+set or a request fails. Filtering, ratings, and "seen" logic work identically
+with offline or live data. `GET /api/status` reports which providers are active.
 
 ## Tech stack
 
@@ -93,8 +107,8 @@ better-sqlite3). Frontend and backend are served together on one port.
 ## Project layout
 
 ```
-client/    React frontend (pages, components, lib)
-server/    Express API, search, catalog, providers, storage
+client/    React frontend (pages, components incl. player/, lib)
+server/    Express API, search, live providers, catalog, storage
 shared/    Drizzle schema + shared types
 setup.py   Raspberry Pi 3 provisioning script
 ```
