@@ -2,6 +2,7 @@ import { CATALOG } from "./catalog";
 import type { Production, SettingsData, SearchResponse } from "@shared/schema";
 import { getCandidates, applyPayFilter } from "./providers";
 import { hasLiveProviders, liveSearch, type SearchStrategy } from "./live";
+import { detectServiceFilter, filterByServices } from "./serviceFilter";
 
 /**
  * AI / natural-language search.
@@ -26,6 +27,54 @@ const STOPWORDS = new Set([
   "with", "set", "in", "on", "at", "the", "a", "an", "of", "and", "or",
   "about", "featuring", "starring", "star", "stars", "like", "me", "some",
   "that", "for", "to", "is", "are", "where", "any", "give", "show me",
+  // Query verbs / filler that carry no matching signal.
+  "list", "all", "find", "get", "see", "watch", "want", "looking", "something",
+  "available", "streaming", "from", "via", "whats", "what",
+]);
+
+// Genre synonyms → the canonical genre words that appear in catalog `genres`.
+// Lets "psychological thrillers" score real Thriller/Mystery titles, and stops a
+// query word like "thrillers" from being a dead token that only brushes overview
+// text on an unrelated title. Keys are normalized (lowercase) query tokens.
+const GENRE_SYNONYMS: Record<string, string[]> = {
+  thriller: ["thriller", "mystery", "crime"],
+  thrillers: ["thriller", "mystery", "crime"],
+  // "psychological" is a thriller/mystery modifier — deliberately NOT mapped to
+  // "drama" (that pulled in nearly every drama). It narrows, it doesn't widen.
+  psychological: ["thriller", "mystery"],
+  scary: ["horror"],
+  horror: ["horror"],
+  spooky: ["horror"],
+  comedy: ["comedy"],
+  comedies: ["comedy"],
+  funny: ["comedy"],
+  romance: ["romance"],
+  romantic: ["romance"],
+  romcom: ["romance", "comedy"],
+  scifi: ["sci-fi", "science fiction"],
+  "sci": ["sci-fi", "science fiction"],
+  fi: ["sci-fi", "science fiction"],
+  action: ["action"],
+  adventure: ["adventure"],
+  drama: ["drama"],
+  dramas: ["drama"],
+  documentary: ["documentary"],
+  documentaries: ["documentary"],
+  animated: ["animation"],
+  animation: ["animation"],
+  fantasy: ["fantasy"],
+  crime: ["crime", "thriller"],
+  mystery: ["mystery", "thriller"],
+};
+
+// Every canonical genre word that can appear in a catalog entry's `genres`,
+// plus every synonym key. If a query token is in here it's treated as a genre
+// constraint (authoritative), not free text.
+const KNOWN_GENRE_WORDS = new Set<string>([
+  ...Object.keys(GENRE_SYNONYMS),
+  "thriller", "mystery", "crime", "drama", "comedy", "romance", "horror",
+  "action", "adventure", "documentary", "animation", "fantasy", "family",
+  "war", "western", "musical", "biography", "history", "sport",
 ]);
 
 function contentTokens(query: string): string[] {
@@ -54,6 +103,17 @@ function offlineScore(query: string, entry: (typeof CATALOG)[number]): number {
   const castWords = new Set(castNorm.split(" "));
   const settingWords = new Set(settingNorm.split(" "));
 
+  const entryGenres = new Set(entry.genres.map((g) => normalize(g)));
+  // Does this entry satisfy a genre word in the query (directly or via synonym)?
+  const matchesGenreWord = (t: string): boolean => {
+    if (entryGenres.has(t)) return true;
+    const syns = GENRE_SYNONYMS[t];
+    return Boolean(syns && syns.some((g) => entryGenres.has(normalize(g))));
+  };
+  // Is this query token a genre word at all (recognized genre / synonym)?
+  const isGenreWord = (t: string): boolean =>
+    entryGenres.has(t) || KNOWN_GENRE_WORDS.has(t);
+
   let score = 0;
   // strong: exact-ish title hit (use content tokens so "movies" doesn't count)
   const qContent = qTokens.join(" ");
@@ -72,8 +132,18 @@ function offlineScore(query: string, entry: (typeof CATALOG)[number]): number {
     if (titleNorm.includes(t)) score += 8;
     if (castWords.has(t)) score += 10; // whole-word actor token: strong signal
     if (settingWords.has(t)) score += 9; // whole-word location token: strong signal
+
+    if (isGenreWord(t)) {
+      // Genre tokens are authoritative: score ONLY when the entry truly has that
+      // genre (directly or via synonym). No weak haystack/overview echo — that's
+      // what let "thrillers" pull in an unrelated comedy. A satisfied genre word
+      // is a strong signal.
+      if (matchesGenreWord(t)) score += 12;
+      // else: contributes nothing (do NOT fall through to keyword/haystack).
+      continue;
+    }
+
     if (entry.keywords.some((k) => normalize(k).includes(t))) score += 4;
-    if (entry.genres.some((g) => normalize(g).includes(t))) score += 4;
     if (haystack.includes(t)) score += 2;
   }
   return score;
@@ -236,20 +306,47 @@ export async function runSearch(
     return { query, usedAi: false, results: visible };
   }
 
+  // Detect a service constraint ("... on netflix") among ENABLED services and
+  // strip it so the remaining text is the real search intent. When present, we
+  // restrict results to titles carried by that service.
+  const svc = detectServiceFilter(trimmed, settings);
+  const effectiveQuery = svc.cleanedQuery;
+  const svcSuffix = svc.matchedNames.length
+    ? ` on ${svc.matchedNames.join(" / ")}`
+    : "";
+
+  // Service-only query ("on netflix", "what's on hulu") → BROWSE that service:
+  // list everything available there rather than requiring extra search terms.
+  // We detect this when stripping the service left no real content tokens.
+  if (svc.serviceIds.length > 0 && contentTokens(effectiveQuery).length === 0) {
+    const browse = filterByServices(visible, svc.serviceIds);
+    return {
+      query,
+      interpreted: `Everything on ${svc.matchedNames.join(" / ")}`,
+      usedAi: false,
+      results: browse,
+    };
+  }
+
   /* ---------------- LIVE path: real-time APIs when keys exist ------------- */
   if (hasLiveProviders()) {
-    // Decide how to query TMDB (actor / theme-location / title).
-    const intent = (settings.aiSearch ? await aiIntent(trimmed) : null) ?? heuristicIntent(trimmed);
+    // Decide how to query TMDB (actor / theme-location / title) from the
+    // service-stripped query so "netflix" isn't treated as a title.
+    const intent = (settings.aiSearch ? await aiIntent(effectiveQuery) : null) ?? heuristicIntent(effectiveQuery);
     try {
       const live = await liveSearch(intent.strategy, settings, seenIds);
-      // Apply the same free/pay filter used for the offline catalog.
-      const filtered = live
-        .map((p) => applyPayFilter(p, settings))
-        .filter((p): p is Production => p !== null);
+      // Apply the same free/pay filter used for the offline catalog, then the
+      // service filter (only titles available on the named service).
+      const filtered = filterByServices(
+        live
+          .map((p) => applyPayFilter(p, settings))
+          .filter((p): p is Production => p !== null),
+        svc.serviceIds,
+      );
       if (filtered.length > 0) {
         return {
           query,
-          interpreted: intent.interpreted,
+          interpreted: intent.interpreted + svcSuffix,
           usedAi: Boolean(settings.aiSearch),
           results: filtered,
         };
@@ -264,21 +361,24 @@ export async function runSearch(
   /* ---------------- OFFLINE path: bundled catalog ------------------------- */
   // Try AI ranking of the bundled catalog first.
   if (settings.aiSearch) {
-    const ai = await aiRankIds(trimmed);
+    const ai = await aiRankIds(effectiveQuery);
     if (ai && ai.ids.length > 0) {
       const byId = new Map(visible.map((p) => [p.id, p]));
-      const ordered = ai.ids.map((id) => byId.get(id)).filter((p): p is Production => !!p);
+      const ordered = filterByServices(
+        ai.ids.map((id) => byId.get(id)).filter((p): p is Production => !!p),
+        svc.serviceIds,
+      );
       if (ordered.length > 0) {
-        return { query, interpreted: ai.interpreted, usedAi: true, results: ordered };
+        return { query, interpreted: (ai.interpreted || "AI-ranked matches") + svcSuffix, usedAi: true, results: ordered };
       }
     }
   }
 
-  // Offline fuzzy fallback.
-  const results = offlineSearch(trimmed, visible);
+  // Offline fuzzy fallback (service-stripped query), then service filter.
+  const results = filterByServices(offlineSearch(effectiveQuery, visible), svc.serviceIds);
   return {
     query,
-    interpreted: results.length ? "Matched by title, genre & keywords" : "No matches found",
+    interpreted: (results.length ? "Matched by title, genre & keywords" : "No matches found") + svcSuffix,
     usedAi: false,
     results,
   };
